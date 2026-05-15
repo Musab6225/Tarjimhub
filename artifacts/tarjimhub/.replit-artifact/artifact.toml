@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "TarjimHub"
+version = "1.0.0"
+id = "artifacts/tarjimhub"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22366
+
+[services.development]
+run = "pnpm --filter @workspace/tarjimhub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tarjimhub", "run", "build" ]
+publicDir = "artifacts/tarjimhub/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22366"
+BASE_PATH = "/"

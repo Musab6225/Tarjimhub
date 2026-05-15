@@ -3,20 +3,34 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TarjimHub API — professional platform for Arabic interpreters
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User profiles
+  - name: glossary
+    description: AI-powered glossary
+  - name: jobs
+    description: Job board
+  - name: feed
+    description: Community feed
+  - name: messages
+    description: Direct messages
+  - name: dashboard
+    description: Dashboard summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +38,861 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # AUTH
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  # USERS
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+
+    put:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/follow:
+    post:
+      operationId: followUser
+      tags: [users]
+      summary: Follow a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Followed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResult"
+
+    delete:
+      operationId: unfollowUser
+      tags: [users]
+      summary: Unfollow a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unfollowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResult"
+
+  # GLOSSARY
+  /glossary/lookup:
+    post:
+      operationId: glossaryLookup
+      tags: [glossary]
+      summary: AI lookup of a term across 5 Arabic dialects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GlossaryLookupInput"
+      responses:
+        "200":
+          description: Dialect results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlossaryLookupResult"
+
+  /glossary/save:
+    post:
+      operationId: saveGlossaryEntry
+      tags: [glossary]
+      summary: Save a glossary result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GlossarySaveInput"
+      responses:
+        "201":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlossaryEntry"
+
+  /glossary/history:
+    get:
+      operationId: getGlossaryHistory
+      tags: [glossary]
+      summary: Get recent lookup history for current user
+      responses:
+        "200":
+          description: History list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GlossaryEntry"
+
+  /glossary/saved:
+    get:
+      operationId: getSavedGlossary
+      tags: [glossary]
+      summary: Get saved glossary entries for current user
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Saved entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GlossaryEntry"
+
+  # JOBS
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List job postings
+      parameters:
+        - name: languagePair
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: specialty
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: urgent
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Job list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Post a new job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a job by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /jobs/{id}/apply:
+    post:
+      operationId: applyToJob
+      tags: [jobs]
+      summary: Apply to a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationInput"
+      responses:
+        "201":
+          description: Applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+
+  /jobs/{id}/applications:
+    get:
+      operationId: getJobApplications
+      tags: [jobs]
+      summary: Get applications for a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Applications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Application"
+
+  /jobs/{id}/save:
+    post:
+      operationId: saveJob
+      tags: [jobs]
+      summary: Save a job for later
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaveJobResult"
+
+  /jobs/saved:
+    get:
+      operationId: getSavedJobs
+      tags: [jobs]
+      summary: Get saved jobs for current user
+      responses:
+        "200":
+          description: Saved jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+
+  # FEED
+  /feed:
+    get:
+      operationId: getFeed
+      tags: [feed]
+      summary: Get community feed posts
+      parameters:
+        - name: specialty
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feed posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+
+  /feed/posts:
+    post:
+      operationId: createPost
+      tags: [feed]
+      summary: Create a feed post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /feed/posts/{id}/like:
+    post:
+      operationId: likePost
+      tags: [feed]
+      summary: Like or unlike a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Like result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResult"
+
+  /feed/posts/{id}/comments:
+    get:
+      operationId: getPostComments
+      tags: [feed]
+      summary: Get comments for a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+
+    post:
+      operationId: addComment
+      tags: [feed]
+      summary: Comment on a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+
+  /feed/trending:
+    get:
+      operationId: getTrendingTopics
+      tags: [feed]
+      summary: Get trending topics/specialties
+      responses:
+        "200":
+          description: Trending topics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendingTopic"
+
+  # MESSAGES
+  /messages:
+    get:
+      operationId: getConversations
+      tags: [messages]
+      summary: Get all conversations for current user
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+  /messages/{userId}:
+    get:
+      operationId: getMessages
+      tags: [messages]
+      summary: Get messages with a specific user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+  /messages/send:
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # DASHBOARD
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard stats for current user
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # AUTH
+    RegisterInput:
+      type: object
+      required: [name, email, password, role, primaryLanguagePair]
+      properties:
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        email: { type: string }
+        password: { type: string }
+        role: { type: string, enum: [interpreter, client] }
+        primaryLanguagePair: { type: string }
+        dialectSpecialty: { type: ["string", "null"] }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string }
+        user:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      required: [id, name, email, role, primaryLanguagePair, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        email: { type: string }
+        role: { type: string }
+        primaryLanguagePair: { type: string }
+        dialectSpecialty: { type: ["string", "null"] }
+        bio: { type: ["string", "null"] }
+        bioAr: { type: ["string", "null"] }
+        certifications: { type: ["string", "null"] }
+        sessionsCompleted: { type: integer }
+        rating: { type: ["number", "null"] }
+        isOnline: { type: boolean }
+        createdAt: { type: string }
+
+    UserUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        bio: { type: ["string", "null"] }
+        bioAr: { type: ["string", "null"] }
+        primaryLanguagePair: { type: string }
+        dialectSpecialty: { type: ["string", "null"] }
+        certifications: { type: ["string", "null"] }
+
+    FollowResult:
+      type: object
+      required: [following]
+      properties:
+        following: { type: boolean }
+
+    # GLOSSARY
+    GlossaryLookupInput:
+      type: object
+      required: [term]
+      properties:
+        term: { type: string }
+        category: { type: ["string", "null"] }
+
+    DialectResult:
+      type: object
+      required: [dialect, dialectAr, term, arabic, note]
+      properties:
+        dialect: { type: string }
+        dialectAr: { type: string }
+        term: { type: string }
+        arabic: { type: string }
+        note: { type: string }
+
+    GlossaryLookupResult:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/DialectResult"
+
+    GlossarySaveInput:
+      type: object
+      required: [term, results]
+      properties:
+        term: { type: string }
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/DialectResult"
+        category: { type: ["string", "null"] }
+
+    GlossaryEntry:
+      type: object
+      required: [id, userId, term, results, savedAt]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        term: { type: string }
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/DialectResult"
+        category: { type: ["string", "null"] }
+        savedAt: { type: string }
+
+    # JOBS
+    JobInput:
+      type: object
+      required: [title, description, languagePair, mode, rateOffered]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        languagePair: { type: string }
+        dialectPreference: { type: ["string", "null"] }
+        mode: { type: string, enum: [otp, video, inperson] }
+        rateOffered: { type: string }
+        specialty: { type: ["string", "null"] }
+        urgent: { type: boolean }
+        remote: { type: boolean }
+        location: { type: ["string", "null"] }
+
+    Job:
+      type: object
+      required: [id, clientId, title, description, languagePair, mode, rateOffered, status, createdAt]
+      properties:
+        id: { type: integer }
+        clientId: { type: integer }
+        clientName: { type: ["string", "null"] }
+        title: { type: string }
+        description: { type: string }
+        languagePair: { type: string }
+        dialectPreference: { type: ["string", "null"] }
+        mode: { type: string }
+        rateOffered: { type: string }
+        specialty: { type: ["string", "null"] }
+        urgent: { type: boolean }
+        remote: { type: boolean }
+        location: { type: ["string", "null"] }
+        status: { type: string }
+        applicationsCount: { type: integer }
+        createdAt: { type: string }
+
+    ApplicationInput:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+
+    Application:
+      type: object
+      required: [id, jobId, interpreterId, message, status, appliedAt]
+      properties:
+        id: { type: integer }
+        jobId: { type: integer }
+        interpreterId: { type: integer }
+        interpreterName: { type: ["string", "null"] }
+        message: { type: string }
+        status: { type: string }
+        appliedAt: { type: string }
+
+    SaveJobResult:
+      type: object
+      required: [saved]
+      properties:
+        saved: { type: boolean }
+
+    # FEED
+    PostInput:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string }
+        contentAr: { type: ["string", "null"] }
+        specialty: { type: ["string", "null"] }
+
+    Post:
+      type: object
+      required: [id, userId, content, likes, commentsCount, createdAt]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        userName: { type: ["string", "null"] }
+        userRole: { type: ["string", "null"] }
+        content: { type: string }
+        contentAr: { type: ["string", "null"] }
+        specialty: { type: ["string", "null"] }
+        likes: { type: integer }
+        likedByMe: { type: boolean }
+        commentsCount: { type: integer }
+        createdAt: { type: string }
+
+    CommentInput:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string }
+
+    Comment:
+      type: object
+      required: [id, postId, userId, content, createdAt]
+      properties:
+        id: { type: integer }
+        postId: { type: integer }
+        userId: { type: integer }
+        userName: { type: ["string", "null"] }
+        content: { type: string }
+        createdAt: { type: string }
+
+    LikeResult:
+      type: object
+      required: [liked, likes]
+      properties:
+        liked: { type: boolean }
+        likes: { type: integer }
+
+    TrendingTopic:
+      type: object
+      required: [topic, count]
+      properties:
+        topic: { type: string }
+        count: { type: integer }
+
+    # MESSAGES
+    MessageInput:
+      type: object
+      required: [receiverId, content]
+      properties:
+        receiverId: { type: integer }
+        content: { type: string }
+
+    Message:
+      type: object
+      required: [id, senderId, receiverId, content, sentAt, read]
+      properties:
+        id: { type: integer }
+        senderId: { type: integer }
+        receiverId: { type: integer }
+        senderName: { type: ["string", "null"] }
+        content: { type: string }
+        sentAt: { type: string }
+        read: { type: boolean }
+
+    Conversation:
+      type: object
+      required: [userId, userName, lastMessage, lastMessageAt, unreadCount]
+      properties:
+        userId: { type: integer }
+        userName: { type: string }
+        userRole: { type: ["string", "null"] }
+        isOnline: { type: boolean }
+        lastMessage: { type: string }
+        lastMessageAt: { type: string }
+        unreadCount: { type: integer }
+
+    # DASHBOARD
+    DashboardStats:
+      type: object
+      required: [sessionsCompleted, jobsApplied, connections, savedJobs, recentActivity]
+      properties:
+        sessionsCompleted: { type: integer }
+        jobsApplied: { type: integer }
+        connections: { type: integer }
+        savedJobs: { type: integer }
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityItem"
+        openJobs: { type: integer }
+        pendingApplications: { type: integer }
+
+    ActivityItem:
+      type: object
+      required: [type, description, createdAt]
+      properties:
+        type: { type: string }
+        description: { type: string }
+        createdAt: { type: string }
