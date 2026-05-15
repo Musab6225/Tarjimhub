@@ -203,10 +203,11 @@ export default function GlossaryPage() {
 
 function SavedGlossary() {
   const { t } = useLang();
-  const [filterCat, setFilterCat] = useState("");
+  const [filterCat, setFilterCat] = useState("all");
+  const activeCat = filterCat === "all" ? undefined : filterCat;
   const { data: saved, isLoading } = useGetSavedGlossary(
-    filterCat ? { category: filterCat } : undefined,
-    { query: { queryKey: getGetSavedGlossaryQueryKey(filterCat ? { category: filterCat } : undefined) } }
+    activeCat ? { category: activeCat } : undefined,
+    { query: { queryKey: getGetSavedGlossaryQueryKey(activeCat ? { category: activeCat } : undefined) } }
   );
 
   return (
@@ -216,7 +217,7 @@ function SavedGlossary() {
           <SelectValue placeholder={t("All categories", "كل الفئات")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">{t("All categories", "كل الفئات")}</SelectItem>
+          <SelectItem value="all">{t("All categories", "كل الفئات")}</SelectItem>
           {["Medical", "Legal", "Social Services", "Mental Health", "General"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
         </SelectContent>
       </Select>

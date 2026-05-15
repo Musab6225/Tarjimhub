@@ -140,19 +140,19 @@ export default function JobsPage() {
             {/* Filters */}
             <div className="flex flex-wrap gap-3">
               <Input value={filters.languagePair} onChange={e => setF("languagePair", e.target.value)} placeholder={t("Language pair...", "زوج اللغة...")} className="w-40" />
-              <Select value={filters.mode} onValueChange={v => setF("mode", v)}>
+              <Select value={filters.mode || "all"} onValueChange={v => setF("mode", v === "all" ? "" : v)}>
                 <SelectTrigger className="w-36"><SelectValue placeholder={t("Mode", "النوع")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">{t("All modes", "كل الأنواع")}</SelectItem>
+                  <SelectItem value="all">{t("All modes", "كل الأنواع")}</SelectItem>
                   <SelectItem value="otp">OTP</SelectItem>
                   <SelectItem value="video">Video</SelectItem>
                   <SelectItem value="inperson">In-Person</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={filters.specialty} onValueChange={v => setF("specialty", v)}>
+              <Select value={filters.specialty || "all"} onValueChange={v => setF("specialty", v === "all" ? "" : v)}>
                 <SelectTrigger className="w-40"><SelectValue placeholder={t("Specialty", "التخصص")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">{t("All specialties", "كل التخصصات")}</SelectItem>
+                  <SelectItem value="all">{t("All specialties", "كل التخصصات")}</SelectItem>
                   {["Medical", "Legal", "Social Services", "Mental Health", "General"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
