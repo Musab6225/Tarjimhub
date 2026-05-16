@@ -10,6 +10,7 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import DashboardPage from "@/pages/dashboard";
 import GlossaryPage from "@/pages/glossary";
+import TerminologiesPage from "@/pages/terminologies";
 import ToolsPage from "@/pages/tools";
 import JobsPage from "@/pages/jobs";
 import FeedPage from "@/pages/feed";
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/register" component={RegisterPage} />
       <Route path="/dashboard"><ProtectedRoute component={DashboardPage} /></Route>
       <Route path="/glossary"><ProtectedRoute component={GlossaryPage} /></Route>
+      <Route path="/terminologies"><ProtectedRoute component={TerminologiesPage} /></Route>
       <Route path="/tools"><ProtectedRoute component={ToolsPage} /></Route>
       <Route path="/jobs"><ProtectedRoute component={JobsPage} /></Route>
       <Route path="/feed"><ProtectedRoute component={FeedPage} /></Route>

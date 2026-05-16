@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  BookOpen, Briefcase, MessageSquare, Rss, Settings, Home, LogOut, User, Menu, X, Languages
+  BookOpen, Briefcase, MessageSquare, Rss, Settings, Home, LogOut, User, Menu, X, Languages, BookMarked
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const navLinks = [
   { href: "/dashboard", icon: Home, en: "Dashboard", ar: "الرئيسية" },
   { href: "/glossary", icon: BookOpen, en: "Glossary", ar: "المعجم" },
+  { href: "/terminologies", icon: BookMarked, en: "Terminologies", ar: "المصطلحات" },
   { href: "/tools", icon: Settings, en: "Tools", ar: "الأدوات" },
   { href: "/jobs", icon: Briefcase, en: "Jobs", ar: "الوظائف" },
   { href: "/feed", icon: Rss, en: "Feed", ar: "المنشورات" },

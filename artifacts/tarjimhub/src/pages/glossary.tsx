@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, BookmarkPlus, Clock, BookOpen } from "lucide-react";
+import { Search, BookmarkPlus, Clock, BookOpen, Save } from "lucide-react";
+import { customFetch } from "@workspace/api-client-react";
 
 const CATEGORIES = ["Medical", "Legal", "Social Services", "Mental Health", "General"];
 
@@ -31,6 +32,7 @@ export default function GlossaryPage() {
   const [category, setCategory] = useState("General");
   const [results, setResults] = useState<any[] | null>(null);
   const [currentTerm, setCurrentTerm] = useState("");
+  const [savingToTerminology, setSavingToTerminology] = useState(false);
 
   const lookup = useGlossaryLookup({
     mutation: {
@@ -39,8 +41,14 @@ export default function GlossaryPage() {
         setCurrentTerm(term);
         queryClient.invalidateQueries({ queryKey: getGetGlossaryHistoryQueryKey() });
       },
-      onError: () => {
-        toast({ title: t("Lookup failed", "فشل البحث"), description: t("AI service unavailable", "خدمة الذكاء الاصطناعي غير متاحة"), variant: "destructive" });
+      onError: (error: unknown) => {
+        const err = error as any;
+        const detail = err?.data?.detail || err?.data?.error || err?.message || t("AI service unavailable", "خدمة الذكاء الاصطناعي غير متاحة");
+        toast({
+          title: t("Lookup failed", "فشل البحث"),
+          description: detail,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -64,6 +72,53 @@ export default function GlossaryPage() {
 
   const handleSaveDialect = (dialectResult: any) => {
     saveEntry.mutate({ data: { term: currentTerm, results: [dialectResult], category } });
+  };
+
+  const handleSaveToTerminology = async () => {
+    if (!results || results.length === 0) return;
+    
+    setSavingToTerminology(true);
+    try {
+      const token = localStorage.getItem("tarjimhub_token");
+      const dialectsObj = results.reduce((acc: any, result: any) => {
+        acc[result.dialect.toLowerCase()] = result.arabic;
+        return acc;
+      }, {});
+
+      const response = await fetch("/api/terminologies/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          term: currentTerm,
+          category: category || null,
+          dialects: dialectsObj,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      toast({
+        title: t("Saved!", "تم الحفظ!"),
+        description: t("Terminology saved successfully", "تم حفظ المصطلح بنجاح"),
+        variant: "default",
+      });
+    } catch (err) {
+      console.error("Save to terminology error:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast({
+        title: t("Error", "خطأ"),
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingToTerminology(false);
+    }
   };
 
   return (
@@ -121,11 +176,26 @@ export default function GlossaryPage() {
           <AnimatePresence>
             {results && !lookup.isPending && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {t("Results for:", "نتائج لـ:")} <span style={{ color: "#1D9E75" }}>"{currentTerm}"</span>
-                  </h2>
-                  <Badge variant="secondary">{category}</Badge>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      {t("Results for:", "نتائج لـ:")} <span style={{ color: "#1D9E75" }}>"{currentTerm}"</span>
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{category}</Badge>
+                    <Button
+                      size="sm"
+                      style={{ background: "#1D9E75" }}
+                      className="text-white"
+                      onClick={handleSaveToTerminology}
+                      disabled={savingToTerminology}
+                      data-testid="button-save-all-to-terminology"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {savingToTerminology ? t("Saving...", "جاري الحفظ...") : t("Save to Terminologies", "احفظ في المصطلحات")}
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {results.map((r, i) => (

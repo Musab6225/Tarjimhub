@@ -2,10 +2,52 @@ import { Router } from "express";
 import { db, glossaryEntriesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
+
+async function callGroq(term: string): Promise<{ results: unknown[] }> {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert Arabic linguistics assistant specializing in dialect variations.
+When given a term (English or Arabic), return a JSON object with the term translated into 5 Arabic dialects: Egyptian, Levantine, Gulf, Moroccan, and Sudanese.
+
+STRICT RULES:
+- "dialect": dialect name in English (e.g. "Egyptian")
+- "dialectAr": dialect name in Arabic script ONLY (e.g. "المصري") — never empty
+- "term": the LOCAL dialect word in romanized transliteration
+- "arabic": the word written in Arabic script — NEVER empty, NEVER use English
+- "note": one short usage note in English, max 8 words
+
+If no dialect-specific word exists, use the Modern Standard Arabic translation.
+NEVER leave "arabic" or "dialectAr" empty. NEVER put English in "arabic" or "dialectAr" fields.
+Return ONLY valid JSON, no markdown. Format:
+{"results": [{"dialect":"","dialectAr":"","term":"","arabic":"","note":""}]}`
+        },
+        { role: "user", content: term }
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(`Groq API error: ${JSON.stringify(err)}`);
+  }
+
+  const data: any = await response.json();
+  const text = data.choices[0].message.content;
+  return JSON.parse(text);
+}
 
 router.post("/glossary/lookup", authMiddleware, async (req: AuthRequest, res) => {
   try {
@@ -15,38 +57,8 @@ router.post("/glossary/lookup", authMiddleware, async (req: AuthRequest, res) =>
       return;
     }
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: `You are an expert Arabic linguistics assistant specializing in dialect variations. 
-When given a term, return a JSON object with the term translated and explained in 5 Arabic dialects: 
-Egyptian, Levantine, Gulf, Moroccan, and Sudanese. 
-For each dialect include:
-- "dialect": dialect name in English
-- "dialectAr": dialect name in Arabic
-- "term": the term as used in that dialect (transliterated if needed)
-- "arabic": the term written in Arabic script
-- "note": any important usage note (max 10 words)
-Return ONLY valid JSON, no explanation, no markdown. Format:
-{"results": [{"dialect":"","dialectAr":"","term":"","arabic":"","note":""}]}`,
-      messages: [{ role: "user", content: term }],
-    });
+    const parsed = await callGroq(term);
 
-    const content = message.content[0];
-    if (content.type !== "text") {
-      res.status(500).json({ error: "Unexpected AI response" });
-      return;
-    }
-
-    let parsed: { results: unknown[] };
-    try {
-      parsed = JSON.parse(content.text);
-    } catch {
-      res.status(500).json({ error: "Failed to parse AI response" });
-      return;
-    }
-
-    // Save to history automatically
     await db.insert(glossaryEntriesTable).values({
       userId: req.userId!,
       term,
@@ -57,7 +69,7 @@ Return ONLY valid JSON, no explanation, no markdown. Format:
     res.json(parsed);
   } catch (err) {
     logger.error({ err }, "glossary lookup error");
-    res.status(500).json({ error: "Glossary lookup failed" });
+    res.status(500).json({ error: "Glossary lookup failed", detail: String(err) });
   }
 });
 

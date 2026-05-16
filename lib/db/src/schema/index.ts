@@ -1,5 +1,6 @@
 export * from "./users";
 export * from "./glossary";
+export * from "./terminologies";
 export * from "./jobs";
 export * from "./feed";
 export * from "./direct_messages";
