@@ -4,62 +4,63 @@ import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authMiddleware, signToken, type AuthRequest } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
+import { validateBody } from "../lib/validation.js";
+import { authSchemas } from "../lib/schemas.js";
 
 const router = Router();
 
-router.post("/auth/register", async (req, res) => {
+router.post("/auth/register", validateBody(authSchemas.register), async (req, res) => {
   try {
     const { name, nameAr, email, password, role, primaryLanguagePair, dialectSpecialty } = req.body;
-    if (!name || !email || !password || !role) {
-      res.status(400).json({ error: "Missing required fields" });
-      return;
-    }
     const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (existing.length > 0) {
+      logger.warn({ event: "user.register", email }, "Email already registered");
       res.status(400).json({ error: "Email already registered" });
       return;
     }
+
     const passwordHash = await bcrypt.hash(password, 10);
     const [user] = await db.insert(usersTable).values({
       name,
       nameAr: nameAr || null,
       email,
       passwordHash,
-      role: role || "interpreter",
+      role,
       primaryLanguagePair: primaryLanguagePair || "Arabic-English",
       dialectSpecialty: dialectSpecialty || null,
     }).returning();
+
     const token = signToken(user.id, user.role);
+    logger.info({ event: "user.register", userId: user.id, email, role }, "User registered successfully");
     const { passwordHash: _, ...safeUser } = user;
     res.status(201).json({ token, user: { ...safeUser, isOnline: false } });
   } catch (err) {
-    logger.error({ err }, "register error");
+    logger.error({ err, event: "user.register" }, "register error");
     res.status(500).json({ error: "Registration failed" });
   }
 });
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", validateBody(authSchemas.login), async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      res.status(400).json({ error: "Email and password required" });
-      return;
-    }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (!user) {
+      logger.warn({ event: "user.login", email }, "Invalid login attempt");
       res.status(401).json({ error: "Invalid credentials" });
       return;
     }
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
+      logger.warn({ event: "user.login", userId: user.id, email }, "Invalid login attempt");
       res.status(401).json({ error: "Invalid credentials" });
       return;
     }
     const token = signToken(user.id, user.role);
+    logger.info({ event: "user.login", userId: user.id, email }, "User login successful");
     const { passwordHash: _, ...safeUser } = user;
     res.json({ token, user: { ...safeUser, isOnline: true } });
   } catch (err) {
-    logger.error({ err }, "login error");
+    logger.error({ err, event: "user.login" }, "login error");
     res.status(500).json({ error: "Login failed" });
   }
 });

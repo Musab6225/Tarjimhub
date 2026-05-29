@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { env } from "../lib/env.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "tarjimhub_dev_secret_2024";
+const JWT_SECRET = env.JWT_SECRET;
 
 export interface AuthRequest extends Request {
   userId?: number;

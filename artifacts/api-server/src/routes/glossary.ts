@@ -2,7 +2,10 @@ import { Router } from "express";
 import { db, glossaryEntriesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
+import { env } from "../lib/env.js";
 import { logger } from "../lib/logger.js";
+import { validateBody, validateQuery } from "../lib/validation.js";
+import { glossarySchemas } from "../lib/schemas.js";
 
 const router = Router();
 
@@ -11,7 +14,7 @@ async function callGroq(term: string): Promise<{ results: unknown[] }> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      "Authorization": `Bearer ${env.GROQ_API_KEY}`,
     },
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
@@ -49,14 +52,9 @@ Return ONLY valid JSON, no markdown. Format:
   return JSON.parse(text);
 }
 
-router.post("/glossary/lookup", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/glossary/lookup", authMiddleware, validateBody(glossarySchemas.lookup), async (req: AuthRequest, res) => {
   try {
     const { term, category } = req.body;
-    if (!term) {
-      res.status(400).json({ error: "Term is required" });
-      return;
-    }
-
     const parsed = await callGroq(term);
 
     await db.insert(glossaryEntriesTable).values({
@@ -66,34 +64,33 @@ router.post("/glossary/lookup", authMiddleware, async (req: AuthRequest, res) =>
       category: category || null,
     });
 
+    logger.info({ event: "glossary.lookup", userId: req.userId, term, category }, "Glossary lookup completed");
     res.json(parsed);
   } catch (err) {
-    logger.error({ err }, "glossary lookup error");
+    logger.error({ err, event: "glossary.lookup", userId: req.userId }, "glossary lookup error");
     res.status(500).json({ error: "Glossary lookup failed", detail: String(err) });
   }
 });
 
-router.post("/glossary/save", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/glossary/save", authMiddleware, validateBody(glossarySchemas.save), async (req: AuthRequest, res) => {
   try {
     const { term, results, category } = req.body;
-    if (!term || !results) {
-      res.status(400).json({ error: "Term and results required" });
-      return;
-    }
     const [entry] = await db.insert(glossaryEntriesTable).values({
       userId: req.userId!,
       term,
       results,
       category: category || null,
     }).returning();
+
+    logger.info({ event: "glossary.save", userId: req.userId, term, category }, "Glossary entry saved");
     res.status(201).json({ ...entry, savedAt: entry.savedAt.toISOString() });
   } catch (err) {
-    logger.error({ err }, "save glossary error");
+    logger.error({ err, event: "glossary.save", userId: req.userId }, "save glossary error");
     res.status(500).json({ error: "Failed to save glossary entry" });
   }
 });
 
-router.get("/glossary/history", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/glossary/history", authMiddleware, validateQuery(glossarySchemas.savedQuery), async (req: AuthRequest, res) => {
   try {
     const entries = await db.select().from(glossaryEntriesTable)
       .where(eq(glossaryEntriesTable.userId, req.userId!))
@@ -106,7 +103,7 @@ router.get("/glossary/history", authMiddleware, async (req: AuthRequest, res) =>
   }
 });
 
-router.get("/glossary/saved", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/glossary/saved", authMiddleware, validateQuery(glossarySchemas.savedQuery), async (req: AuthRequest, res) => {
   try {
     const { category } = req.query;
     let query = db.select().from(glossaryEntriesTable)

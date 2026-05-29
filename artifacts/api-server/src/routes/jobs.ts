@@ -3,18 +3,25 @@ import { db, jobsTable, applicationsTable, savedJobsTable, usersTable } from "@w
 import { eq, and, desc } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
+import { validateBody, validateParams, validateQuery } from "../lib/validation.js";
+import { jobsSchemas } from "../lib/schemas.js";
 
 const router = Router();
 
-router.get("/jobs", async (req, res) => {
+router.get("/jobs", validateQuery(jobsSchemas.query), async (req, res) => {
   try {
-    const { languagePair, mode, specialty, urgent } = req.query;
+    const { languagePair, mode, specialty, urgent } = req.query as {
+      languagePair?: string;
+      mode?: string;
+      specialty?: string;
+      urgent?: boolean;
+    };
     const jobs = await db.select().from(jobsTable).orderBy(desc(jobsTable.createdAt));
     let filtered = jobs;
-    if (languagePair) filtered = filtered.filter(j => j.languagePair.toLowerCase().includes((languagePair as string).toLowerCase()));
+    if (languagePair) filtered = filtered.filter(j => j.languagePair.toLowerCase().includes(languagePair.toLowerCase()));
     if (mode) filtered = filtered.filter(j => j.mode === mode);
     if (specialty) filtered = filtered.filter(j => j.specialty === specialty);
-    if (urgent === "true") filtered = filtered.filter(j => j.urgent);
+    if (urgent === true) filtered = filtered.filter(j => j.urgent);
 
     // Enrich with client name and application count
     const enriched = await Promise.all(filtered.map(async (job) => {
@@ -34,13 +41,9 @@ router.get("/jobs", async (req, res) => {
   }
 });
 
-router.post("/jobs", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/jobs", authMiddleware, validateBody(jobsSchemas.create), async (req: AuthRequest, res) => {
   try {
     const { title, description, languagePair, dialectPreference, mode, rateOffered, specialty, urgent, remote, location } = req.body;
-    if (!title || !description || !languagePair || !mode || !rateOffered) {
-      res.status(400).json({ error: "Missing required fields" });
-      return;
-    }
     const [job] = await db.insert(jobsTable).values({
       clientId: req.userId!,
       title, description, languagePair,
@@ -51,6 +54,7 @@ router.post("/jobs", authMiddleware, async (req: AuthRequest, res) => {
       remote: remote !== false,
       location: location || null,
     }).returning();
+    logger.info({ event: "job.create", userId: req.userId, jobId: job.id, title, mode }, "Job created successfully");
     res.status(201).json({ ...job, clientName: null, applicationsCount: 0, createdAt: job.createdAt.toISOString() });
   } catch (err) {
     logger.error({ err }, "createJob error");
@@ -75,9 +79,9 @@ router.get("/jobs/saved", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.get("/jobs/:id", async (req, res) => {
+router.get("/jobs/:id", validateParams(jobsSchemas.idParams), async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const { id } = req.params as { id: number };
     const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, id)).limit(1);
     if (!job) {
       res.status(404).json({ error: "Job not found" });
@@ -92,19 +96,16 @@ router.get("/jobs/:id", async (req, res) => {
   }
 });
 
-router.post("/jobs/:id/apply", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/jobs/:id/apply", authMiddleware, validateParams(jobsSchemas.idParams), validateBody(jobsSchemas.apply), async (req: AuthRequest, res) => {
   try {
-    const jobId = parseInt(req.params.id);
+    const { id: jobId } = req.params as { id: number };
     const { message } = req.body;
-    if (!message) {
-      res.status(400).json({ error: "Message required" });
-      return;
-    }
     const [app] = await db.insert(applicationsTable).values({
       jobId,
       interpreterId: req.userId!,
       message,
     }).returning();
+    logger.info({ event: "job.apply", userId: req.userId, jobId, applicationId: app.id }, "Job application submitted");
     res.status(201).json({ ...app, interpreterName: null, appliedAt: app.appliedAt.toISOString() });
   } catch (err) {
     logger.error({ err }, "applyToJob error");
@@ -112,9 +113,9 @@ router.post("/jobs/:id/apply", authMiddleware, async (req: AuthRequest, res) => 
   }
 });
 
-router.get("/jobs/:id/applications", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/jobs/:id/applications", authMiddleware, validateParams(jobsSchemas.idParams), async (req: AuthRequest, res) => {
   try {
-    const jobId = parseInt(req.params.id);
+    const { id: jobId } = req.params as { id: number };
     const apps = await db.select().from(applicationsTable).where(eq(applicationsTable.jobId, jobId));
     const enriched = await Promise.all(apps.map(async (app) => {
       const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, app.interpreterId)).limit(1);
@@ -127,9 +128,9 @@ router.get("/jobs/:id/applications", authMiddleware, async (req: AuthRequest, re
   }
 });
 
-router.post("/jobs/:id/save", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/jobs/:id/save", authMiddleware, validateParams(jobsSchemas.idParams), async (req: AuthRequest, res) => {
   try {
-    const jobId = parseInt(req.params.id);
+    const { id: jobId } = req.params as { id: number };
     const userId = req.userId!;
     const existing = await db.select().from(savedJobsTable)
       .where(and(eq(savedJobsTable.userId, userId), eq(savedJobsTable.jobId, jobId))).limit(1);

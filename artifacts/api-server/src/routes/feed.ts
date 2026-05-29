@@ -3,12 +3,14 @@ import { db, postsTable, postLikesTable, commentsTable, usersTable } from "@work
 import { eq, and, desc, sql } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
+import { validateBody, validateQuery, validateParams } from "../lib/validation.js";
+import { feedSchemas } from "../lib/schemas.js";
 
 const router = Router();
 
-router.get("/feed", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/feed", authMiddleware, validateQuery(feedSchemas.query), async (req: AuthRequest, res) => {
   try {
-    const { specialty } = req.query;
+    const { specialty } = req.query as { specialty?: string };
     const posts = await db.select().from(postsTable).orderBy(desc(postsTable.createdAt)).limit(50);
     let filtered = posts;
     if (specialty && specialty !== "all") {
@@ -37,13 +39,9 @@ router.get("/feed", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/feed/posts", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/feed/posts", authMiddleware, validateBody(feedSchemas.createPost), async (req: AuthRequest, res) => {
   try {
     const { content, contentAr, specialty } = req.body;
-    if (!content) {
-      res.status(400).json({ error: "Content required" });
-      return;
-    }
     const [post] = await db.insert(postsTable).values({
       userId: req.userId!,
       content,
@@ -66,9 +64,9 @@ router.post("/feed/posts", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/feed/posts/:id/like", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/feed/posts/:id/like", authMiddleware, validateParams(feedSchemas.postIdParams), async (req: AuthRequest, res) => {
   try {
-    const postId = parseInt(req.params.id);
+    const { id: postId } = req.params as { id: number };
     const userId = req.userId!;
     const existing = await db.select().from(postLikesTable)
       .where(and(eq(postLikesTable.postId, postId), eq(postLikesTable.userId, userId))).limit(1);
@@ -90,9 +88,9 @@ router.post("/feed/posts/:id/like", authMiddleware, async (req: AuthRequest, res
   }
 });
 
-router.get("/feed/posts/:id/comments", async (req, res) => {
+router.get("/feed/posts/:id/comments", validateParams(feedSchemas.postIdParams), async (req, res) => {
   try {
-    const postId = parseInt(req.params.id);
+    const { id: postId } = req.params as { id: number };
     const comments = await db.select().from(commentsTable).where(eq(commentsTable.postId, postId)).orderBy(commentsTable.createdAt);
     const enriched = await Promise.all(comments.map(async (c) => {
       const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, c.userId)).limit(1);
@@ -105,14 +103,10 @@ router.get("/feed/posts/:id/comments", async (req, res) => {
   }
 });
 
-router.post("/feed/posts/:id/comments", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/feed/posts/:id/comments", authMiddleware, validateParams(feedSchemas.postIdParams), validateBody(feedSchemas.commentBody), async (req: AuthRequest, res) => {
   try {
-    const postId = parseInt(req.params.id);
+    const { id: postId } = req.params as { id: number };
     const { content } = req.body;
-    if (!content) {
-      res.status(400).json({ error: "Content required" });
-      return;
-    }
     const [comment] = await db.insert(commentsTable).values({
       postId,
       userId: req.userId!,

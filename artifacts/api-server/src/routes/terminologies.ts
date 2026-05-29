@@ -3,16 +3,14 @@ import { db, terminologiesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
+import { validateBody, validateQuery, validateParams } from "../lib/validation.js";
+import { terminologiesSchemas } from "../lib/schemas.js";
 
 const router = Router();
 
-router.post("/terminologies/save", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/terminologies/save", authMiddleware, validateBody(terminologiesSchemas.save), async (req: AuthRequest, res) => {
   try {
     const { term, definition, category, dialects, examples } = req.body;
-    if (!term || !dialects) {
-      res.status(400).json({ error: "Term and dialects required" });
-      return;
-    }
     const [entry] = await db.insert(terminologiesTable).values({
       userId: req.userId!,
       term,
@@ -30,9 +28,9 @@ router.post("/terminologies/save", authMiddleware, async (req: AuthRequest, res)
   }
 });
 
-router.get("/terminologies/saved", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/terminologies/saved", authMiddleware, validateQuery(terminologiesSchemas.savedQuery), async (req: AuthRequest, res) => {
   try {
-    const { category } = req.query;
+    const { category } = req.query as { category?: string };
     let query = db.select().from(terminologiesTable)
       .where(eq(terminologiesTable.userId, req.userId!))
       .$dynamic();
@@ -50,9 +48,9 @@ router.get("/terminologies/saved", authMiddleware, async (req: AuthRequest, res)
   }
 });
 
-router.get("/terminologies/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/terminologies/:id", authMiddleware, validateParams(terminologiesSchemas.idParams), async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: number };
     const [entry] = await db.select().from(terminologiesTable)
       .where(eq(terminologiesTable.id, parseInt(id)))
       .limit(1);
@@ -69,9 +67,9 @@ router.get("/terminologies/:id", authMiddleware, async (req: AuthRequest, res) =
   }
 });
 
-router.delete("/terminologies/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.delete("/terminologies/:id", authMiddleware, validateParams(terminologiesSchemas.idParams), async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: number };
     const [entry] = await db.select().from(terminologiesTable)
       .where(eq(terminologiesTable.id, parseInt(id)))
       .limit(1);

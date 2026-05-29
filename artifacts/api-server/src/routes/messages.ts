@@ -3,6 +3,8 @@ import { db, directMessagesTable, usersTable } from "@workspace/db";
 import { eq, or, and, desc, sql } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
+import { validateBody, validateParams } from "../lib/validation.js";
+import { messagesSchemas } from "../lib/schemas.js";
 
 const router = Router();
 
@@ -50,10 +52,10 @@ router.get("/messages", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.get("/messages/:userId", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/messages/:userId", authMiddleware, validateParams(messagesSchemas.userIdParams), async (req: AuthRequest, res) => {
   try {
     const myId = req.userId!;
-    const otherId = parseInt(req.params.userId);
+    const { userId: otherId } = req.params as { userId: number };
     const msgs = await db.select().from(directMessagesTable)
       .where(or(
         and(eq(directMessagesTable.senderId, myId), eq(directMessagesTable.receiverId, otherId)),
@@ -78,18 +80,15 @@ router.get("/messages/:userId", authMiddleware, async (req: AuthRequest, res) =>
   }
 });
 
-router.post("/messages/send", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/messages/send", authMiddleware, validateBody(messagesSchemas.send), async (req: AuthRequest, res) => {
   try {
     const { receiverId, content } = req.body;
-    if (!receiverId || !content) {
-      res.status(400).json({ error: "receiverId and content required" });
-      return;
-    }
     const [msg] = await db.insert(directMessagesTable).values({
       senderId: req.userId!,
       receiverId,
       content,
     }).returning();
+    logger.info({ event: "message.send", senderId: req.userId, receiverId, messageId: msg.id }, "Direct message sent");
     const [user] = await db.select({ name: usersTable.name }).from(usersTable)
       .where(eq(usersTable.id, req.userId!)).limit(1);
     res.status(201).json({ ...msg, senderName: user?.name || null, sentAt: msg.sentAt.toISOString() });
